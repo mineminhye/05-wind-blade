@@ -1,0 +1,954 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>바람의 도시 - 꿀꿀쥐 방어전</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;900&family=Noto+Sans+KR:wght@300;700;900&display=swap');
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #0f172a;
+            font-family: 'Noto Sans KR', sans-serif;
+            user-select: none;
+            touch-action: none;
+        }
+        canvas { display: block; }
+        #ui-layer {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            display: flex; flex-direction: column; justify-content: space-between;
+            padding: 30px; color: white;
+            z-index: 30;
+        }
+        .orbitron { font-family: 'Orbitron', sans-serif; }
+        .panel {
+            pointer-events: auto;
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(12px);
+            padding: 15px 25px;
+            border-radius: 20px;
+            border: 2px solid rgba(244, 63, 94, 0.4);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+        .fever-container {
+            width: 200px; height: 12px; background: rgba(255, 255, 255, 0.1);
+            border-radius: 6px; overflow: hidden; margin-top: 5px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        #fever-bar {
+            width: 0%; height: 100%;
+            background: linear-gradient(90deg, #f43f5e, #be123c);
+            transition: width 0.3s ease-out;
+        }
+        .btn {
+            pointer-events: auto;
+            background: linear-gradient(135deg, #f43f5e 0%, #be123c 100%);
+            padding: 15px 40px; border-radius: 15px; font-weight: 900;
+            cursor: pointer; transition: all 0.2s;
+            text-transform: uppercase; letter-spacing: 2px;
+            border: none; color: white; box-shadow: 0 5px 0 #9f1239;
+            display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+        }
+        .btn:active { transform: translateY(3px); box-shadow: 0 2px 0 #9f1239; }
+        .btn-tablet {
+            background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);
+            box-shadow: 0 5px 0 #4c1d95;
+        }
+        #message-box {
+            position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%); text-align: center; z-index: 100;
+            width: 90%; max-width: 550px;
+        }
+        .hidden { display: none; }
+        .hit-text {
+            position: absolute; color: #fff; font-weight: 900;
+            font-size: 2.2rem; pointer-events: none; animation: popUp 1.2s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            text-shadow: 0 0 15px #f43f5e;
+            z-index: 100;
+        }
+        @keyframes popUp {
+            0% { transform: scale(0.5) rotate(-15deg); opacity: 0; }
+            30% { transform: scale(1.4) rotate(10deg); opacity: 1; }
+            100% { transform: translateY(-130px) scale(1) rotate(-5deg); opacity: 0; }
+        }
+        #stage-splash {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 5rem; font-weight: 900; color: #fff; pointer-events: none;
+            opacity: 0; z-index: 50; text-shadow: 0 0 30px #f43f5e;
+        }
+        .splash-anim { animation: splashIn 1.5s ease-in-out forwards; }
+        @keyframes splashIn {
+            0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
+            30% { transform: translate(-50%, -50%) scale(1.1); opacity: 1; }
+            70% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+            100% { transform: translate(-50%, -50%) scale(1.5); opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="stage-splash" class="orbitron">STAGE CLEAR</div>
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="ui-layer">
+        <div class="flex justify-between items-start">
+            <div class="panel">
+                <div class="text-xs text-rose-400 font-black orbitron tracking-wider">WIND TANGENT POWER</div>
+                <div class="fever-container"><div id="fever-bar"></div></div>
+                <div class="text-2xl font-black text-white mt-2" id="level-text">STAGE 05-1</div>
+            </div>
+            <div class="panel text-right">
+                <div class="text-3xl font-black orbitron text-rose-400" id="score-text">0000</div>
+                <div class="text-xs opacity-60 font-bold" id="combo-text">COMBO X0</div>
+            </div>
+        </div>
+
+        <div class="flex justify-center mb-4">
+            <div class="panel text-center max-w-lg border-rose-500/50">
+                <!-- 원의 접선 기하학적 힌트 가이드 표시 영역 -->
+                <p id="instruction" class="text-sm font-bold text-rose-100 leading-relaxed">
+                    불러오는 중...
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <div id="message-box">
+        <div id="start-screen" class="panel p-8 border-rose-500">
+            <h2 class="text-4xl font-black mb-1 orbitron text-transparent bg-clip-text bg-gradient-to-r from-rose-400 via-pink-500 to-amber-400">WIND TANGENT</h2>
+            <p class="text-rose-300 font-black tracking-widest mb-5 text-sm">바람의 도시 · 꿀꿀쥐 방어전</p>
+
+            <!-- 스토리 1 : 세계관 -->
+            <div class="story-page" data-page="0">
+                <div class="text-6xl mb-4">🌪️🐭</div>
+                <div class="text-left space-y-3 mb-6 leading-relaxed text-slate-100 text-lg break-keep">
+                    <p>평화롭던 <span class="text-rose-400 font-black">바람의 도시</span>에 통통하고 깜찍한 <span class="text-rose-400 font-black">꿀꿀쥐</span> 마물이 나타났어요!</p>
+                    <p>자세히 보니… 꿀꿀쥐들은 원의 <span class="text-amber-300 font-bold">중심에서 똑같은 거리</span>를 유지하며 안쪽 <span class="text-white font-bold">궤도(점선 원)</span>를 빙글빙글 돌고 있네요. 아무리 도망쳐도 중심까지의 거리는 늘 그대로!</p>
+                </div>
+            </div>
+
+            <!-- 스토리 2 : 미션 -->
+            <div class="story-page hidden" data-page="1">
+                <div class="text-6xl mb-4">⚔️💨</div>
+                <div class="text-left space-y-3 mb-6 leading-relaxed text-slate-100 text-lg break-keep">
+                    <p>바깥 원의 두 점을 이어 <span class="text-yellow-300 font-black">윈드블레이드(현)</span>를 날리세요.</p>
+                    <p>안쪽 궤도에 딱 <span class="text-yellow-300 font-black">접하는 현</span> 하나만 정확히 그으면, 같은 길이의 현들이 좍 퍼지며 <span class="text-amber-300 font-bold">스트링아트</span>가 완성돼요!</p>
+                    <p>스트링아트에 닿은 꿀꿀쥐는 <span class="text-emerald-300 font-black">정화</span> ✨ 거리를 못 맞히면 꿀꿀쥐가 <span class="text-rose-400 font-bold">메롱~👅</span> 하며 약을 올려요.</p>
+                </div>
+            </div>
+
+            <!-- 스토리 3 : 오늘의 원리 -->
+            <div class="story-page hidden" data-page="2">
+                <div class="text-6xl mb-4">📐✨</div>
+                <div class="bg-rose-500/10 border border-rose-400/40 rounded-2xl p-5 mb-6 text-left">
+                    <p class="text-amber-300 font-black text-base mb-2">오늘의 원리 <span class="opacity-50 font-bold">[9수03-18]</span></p>
+                    <p class="text-slate-100 text-lg font-bold break-keep leading-relaxed">한 원에서 <span class="text-yellow-300">중심으로부터 같은 거리</span>에 있는 <span class="text-yellow-300">현의 길이는 서로 같다.</span></p>
+                    <p class="text-slate-300 text-sm mt-2 break-keep leading-relaxed">→ 궤도에 접하는 현들은 중심에서 거리가 모두 같으니, 길이도 같아서 궤도를 스트링아트로 감쌉니다.</p>
+                </div>
+            </div>
+
+            <div class="flex justify-center gap-2 mb-5" id="story-dots"></div>
+
+            <div class="flex justify-center gap-3">
+                <div id="story-prev-btn" class="btn inline-block shadow-lg btn-tablet hidden" onclick="prevStoryPage()">◀ 이전</div>
+                <div id="story-next-btn" class="btn inline-block shadow-lg" onclick="nextStoryPage()">다음 ▶</div>
+                <div id="story-start-btn" class="btn inline-block shadow-lg hidden" onclick="startGame()">⚔️ 도전 시작</div>
+            </div>
+        </div>
+
+        <div id="clear-screen" class="panel p-12 hidden border-emerald-500">
+            <h2 class="text-5xl font-black mb-6 text-emerald-400 orbitron">LEGENDARY</h2>
+            <p class="mb-8 leading-relaxed text-lg text-emerald-50 break-keep">
+                축하합니다! 7개의 시련을 완벽하게 극복하셨습니다.<br>
+                접선의 기하학적 결계가 복구되어 꿀꿀쥐들이 모두 온순하게 정화되었습니다!
+            </p>
+
+            <p class="text-emerald-200/90 text-sm mb-8 break-keep leading-relaxed">
+                📐 오늘 확인한 원리: <span class="text-yellow-200 font-bold">중심에서 같은 거리에 있는 현의 길이는 서로 같다</span> — 그래서 궤도에 접하는 현들이 모두 같은 길이로 스트링아트를 이뤘어요.
+            </p>
+            
+            <div class="flex flex-col gap-5">
+                <button class="btn btn-tablet w-full" onclick="openTablet()">
+                    <span>📜</span> 지혜의 석판 읽기
+                </button>
+                <button class="btn w-full" onclick="returnToMap()">
+                    <span>🗺️</span> 모험의 지도 펼치기
+                </button>
+            </div>
+        </div>
+    </div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const scoreText = document.getElementById('score-text');
+    const comboTextUI = document.getElementById('combo-text');
+    const levelText = document.getElementById('level-text');
+    const feverBar = document.getElementById('fever-bar');
+    const startScreen = document.getElementById('start-screen');
+    const clearScreen = document.getElementById('clear-screen');
+    const splash = document.getElementById('stage-splash');
+    const instruction = document.getElementById('instruction');
+
+    let width, height;
+    let gameState = 'START';
+    let currentLevel = 1;
+    let score = 0;
+    let combo = 0;
+    let fever = 0;
+    let isFeverMode = false;
+    let monsters = [];
+    let particles = [];
+    let stringArtEffects = [];
+    let activeBlades = [];
+    let perimeterPoints = [];
+    let selectedPointIndex = null;
+    let mouse = { x: 0, y: 0 };
+    let shake = 0;
+    let timeScale = 1.0;
+    let audioCtx = null;
+
+    // --- 사운드 합성 엔진 (Web Audio API) ---
+    function initAudio() {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+    }
+
+    function playSound(type) {
+        if (!audioCtx) return;
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
+        }
+        const now = audioCtx.currentTime;
+        if (type === 'click') {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(600, now);
+            osc.frequency.exponentialRampToValueAtTime(1000, now + 0.05);
+            gain.gain.setValueAtTime(0.08, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start(now);
+            osc.stop(now + 0.1);
+        } else if (type === 'activate') {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(523.25, now);
+            osc.frequency.exponentialRampToValueAtTime(1318.51, now + 0.25);
+            gain.gain.setValueAtTime(0.15, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start(now);
+            osc.stop(now + 0.3);
+        } else if (type === 'fail') {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(320, now);
+            osc.frequency.linearRampToValueAtTime(120, now + 0.35);
+            gain.gain.setValueAtTime(0.18, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start(now);
+            osc.stop(now + 0.35);
+        } else if (type === 'victory') {
+            const notes = [523.25, 659.25, 783.99, 1046.50];
+            notes.forEach((freq, index) => {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(freq, now + index * 0.1);
+                gain.gain.setValueAtTime(0.12, now + index * 0.1);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 1.2);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(now + index * 0.1);
+                osc.stop(now + 1.3);
+            });
+        }
+    }
+    
+    const LEVEL_ORBITS = [208, 140, 243, 87, 266, 187, 114];
+    const LEVEL_TANGENT_DIFFS = [7, 10, 5, 12, 3, 8, 11];
+    let currentLevelOrbitRadius = 208;
+
+    const POINTS_COUNT = 30;
+    const MAIN_CIRCLE_RADIUS = 280;
+    const INITIAL_MONSTER_SIZE = 45;
+    const VICTORY_MILESTONE = 7; 
+
+    // --- 선물공룡 디보 봉제 인형 스타일의 수작업 바느질(Stitched Felt) 드로잉 함수 ---
+    function drawStitchedFeltShape(ctx, cx, cy, rx, ry, rot, fillCol, strokeCol, strokeWidth, fuzzScale) {
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(rot);
+
+        // 1. 기본 인형 천 바탕 채우기
+        ctx.fillStyle = fillCol;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 2. 가장자리에 보송보송 삐져나온 미세 펠트 섬유 질감
+        ctx.strokeStyle = fillCol;
+        ctx.lineWidth = 1.2;
+        const perimeter = Math.PI * (rx + ry);
+        const fiberCount = Math.floor(perimeter * 0.7); 
+        
+        for (let i = 0; i < fiberCount; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const edgeOffset = 0.96 + Math.random() * 0.07;
+            const fx = Math.cos(angle) * rx * edgeOffset;
+            const fy = Math.sin(angle) * ry * edgeOffset;
+            
+            const fiberLen = (Math.random() * 4.0 + 1.8) * fuzzScale;
+            const fiberAngle = angle + (Math.random() - 0.5) * 1.5;
+
+            ctx.beginPath();
+            ctx.moveTo(fx, fy);
+            ctx.lineTo(fx + Math.cos(fiberAngle) * fiberLen, fy + Math.sin(fiberAngle) * fiberLen);
+            ctx.stroke();
+        }
+
+        // 3. 디보 스타일의 특징적인 굵은 '봉제선 실밥 점선' 연출 (Inner Stitch)
+        ctx.save();
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.65)';
+        ctx.lineWidth = 2.0;
+        ctx.setLineDash([5, 5]); // 봉제 간격 점선화
+        ctx.beginPath();
+        // 실제 크기보다 아주 약간 작은 궤도로 안쪽 바느질선 묘사
+        ctx.ellipse(0, 0, rx * 0.88, ry * 0.88, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+
+        // 4. 인형 아웃라인 마감선
+        ctx.strokeStyle = strokeCol;
+        ctx.lineWidth = strokeWidth;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.restore();
+    }
+
+    class Monster {
+        constructor(baseSize, startAngle) {
+            this.baseSize = baseSize;
+            this.angle = startAngle;
+            this.angularVelocity = (0.015 + (currentLevel * 0.0015)) * (currentLevel % 2 === 0 ? 1 : -1);
+            this.isDead = false;
+            this.pulse = Math.random() * Math.PI * 2;
+            this.isTeasing = false;
+            this.teaseTimer = 0;
+        }
+
+        update() {
+            this.angle += this.angularVelocity * 0.1 * timeScale;
+            this.pulse += 0.05 * timeScale;
+            this.x = width/2 + Math.cos(this.angle) * currentLevelOrbitRadius;
+            this.y = height/2 + Math.sin(this.angle) * currentLevelOrbitRadius;
+
+            if (this.isTeasing) {
+                this.teaseTimer -= 1 * timeScale;
+                if (this.teaseTimer <= 0) {
+                    this.isTeasing = false;
+                }
+            }
+        }
+
+        triggerTease() {
+            // 이미 메롱 모션 진행 중일 때는 중복 실행 및 중복 사운드 방지(최적화)
+            if (this.isTeasing) return;
+            this.isTeasing = true;
+            this.teaseTimer = 45;
+            playSound('fail');
+            addTeaseText(this.x, this.y, "메롱~ 👅");
+        }
+
+        draw() {
+            ctx.save();
+            ctx.translate(this.x, this.y);
+            ctx.rotate(this.angle + (this.angularVelocity > 0 ? Math.PI/2 : -Math.PI/2));
+
+            const size = this.baseSize;
+            const bodyColor = isFeverMode ? '#ffebeb' : '#ffdae0'; 
+            const strokeColor = '#f43f5e';
+
+            // 1. [레이어 1] 다람쥐 풍성한 S자 볼륨형 꼬리 (Dibo-style Squirrel Tail)
+            ctx.save();
+            // 꼬리 마디들을 중첩하여 풍성한 부피감 형성
+            const tailSegments = [
+                { dx: size * 0.35, dy: -size * 0.15, rx: size * 0.32, ry: size * 0.32, col: '#ffccd5' },
+                { dx: size * 0.55, dy: -size * 0.38, rx: size * 0.38, ry: size * 0.38, col: '#ffb3c1' },
+                { dx: size * 0.72, dy: -size * 0.65, rx: size * 0.44, ry: size * 0.44, col: '#ffa6b6' },
+                { dx: size * 0.62, dy: -size * 0.92, rx: size * 0.36, ry: size * 0.36, col: '#ff8da1' }
+            ];
+            
+            tailSegments.forEach(seg => {
+                drawStitchedFeltShape(ctx, seg.dx, seg.dy, seg.rx, seg.ry, 0, seg.col, strokeColor, 2, 1.3);
+            });
+
+            // 꼬리 끝부분 나선형 수작업 꼬임 실선 연출
+            ctx.strokeStyle = '#c9184a';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(size * 0.4, -size * 0.2);
+            ctx.quadraticCurveTo(size * 0.8, -size * 0.6, size * 0.62, -size * 0.92);
+            ctx.stroke();
+            ctx.restore();
+
+            // 2. [레이어 2] 엎드린 뒷발 (Back Paw)
+            drawStitchedFeltShape(ctx, size * 0.52, size * 0.45, size * 0.16, size * 0.12, Math.PI / 12, bodyColor, strokeColor, 1.8, 0.8);
+
+            // 3. [레이어 3] "몸은 너무 커" -> 앙증맞게 대폭 축소한 몸통 (Chubby Micro Body)
+            // 종횡 반경 비율을 축소하여 슬림하고 콤팩트한 엎드린 형상 완성 (0.78 -> 0.54로 대폭 축소)
+            drawStitchedFeltShape(ctx, size * 0.18, size * 0.12, size * 0.54, size * 0.42, Math.PI / 15, bodyColor, strokeColor, 2.2, 1.1);
+
+            // 4. [레이어 4] 디보의 시그니처: 몸통 위 "조각 천 패치" 덧대기 (Dibo's Stitched Patch)
+            ctx.save();
+            ctx.translate(size * 0.22, size * 0.08);
+            ctx.rotate(Math.PI / 6);
+            ctx.fillStyle = '#fef08a'; // 노란색 조각 천 패치
+            ctx.strokeStyle = strokeColor;
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.rect(-size * 0.16, -size * 0.12, size * 0.32, size * 0.24);
+            ctx.fill(); ctx.stroke();
+            
+            // 패치 외곽 바느질 흔적 (X자 바느질들)
+            ctx.strokeStyle = '#c9184a';
+            ctx.lineWidth = 2.0;
+            const stitchOffsets = [-0.14, 0, 0.14];
+            stitchOffsets.forEach(ox => {
+                // 상단 X실밥
+                ctx.beginPath();
+                ctx.moveTo(size * ox - 3, -size * 0.12 - 3); ctx.lineTo(size * ox + 3, -size * 0.12 + 3);
+                ctx.moveTo(size * ox + 3, -size * 0.12 - 3); ctx.lineTo(size * ox - 3, -size * 0.12 + 3);
+                ctx.stroke();
+                // 하단 X실밥
+                ctx.beginPath();
+                ctx.moveTo(size * ox - 3, size * 0.12 - 3); ctx.lineTo(size * ox + 3, size * 0.12 + 3);
+                ctx.moveTo(size * ox + 3, size * 0.12 - 3); ctx.lineTo(size * ox - 3, size * 0.12 + 3);
+                ctx.stroke();
+            });
+            ctx.restore();
+
+            // 5. [레이어 5] 엎드린 포즈 앞발들 (Prone Paws)
+            // 왼쪽 앞발
+            drawStitchedFeltShape(ctx, -size * 0.42, size * 0.46, size * 0.18, size * 0.12, Math.PI / 4, bodyColor, strokeColor, 1.8, 0.8);
+            // 오른쪽 앞발
+            drawStitchedFeltShape(ctx, size * 0.08, size * 0.5, size * 0.18, size * 0.12, -Math.PI / 6, bodyColor, strokeColor, 1.8, 0.8);
+
+            // 6. [레이어 6] 귀 (Rounded Soft Stitched Ears)
+            // 왼쪽 귀
+            drawStitchedFeltShape(ctx, -size * 0.48, -size * 0.38, size * 0.22, size * 0.22, -Math.PI/12, bodyColor, strokeColor, 2, 1.0);
+            drawStitchedFeltShape(ctx, -size * 0.48, -size * 0.38, size * 0.14, size * 0.14, -Math.PI/12, '#ffa6b6', strokeColor, 1, 0.7);
+            
+            // 오른쪽 귀
+            drawStitchedFeltShape(ctx, -size * 0.1, -size * 0.44, size * 0.24, size * 0.24, Math.PI/12, bodyColor, strokeColor, 2, 1.0);
+            drawStitchedFeltShape(ctx, -size * 0.1, -size * 0.44, size * 0.15, size * 0.15, Math.PI/12, '#ffa6b6', strokeColor, 1, 0.7);
+
+            // 7. [레이어 7] 둥글고 납작하게 묻혀 엎드린 머리 (Proportional Soft Head)
+            drawStitchedFeltShape(ctx, -size * 0.24, -size * 0.05, size * 0.45, size * 0.42, 0, bodyColor, strokeColor, 2.5, 1.1);
+
+            // 8. [레이어 8] 수줍은 아기 볼터치 (Blusher Cheeks)
+            ctx.fillStyle = 'rgba(255, 115, 140, 0.6)';
+            ctx.beginPath(); ctx.arc(-size * 0.46, size * 0.1, size * 0.11, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(-size * 0.05, size * 0.1, size * 0.11, 0, Math.PI * 2); ctx.fill();
+
+            // 9. [레이어 9] "코는 너무 커" -> 앙증맞게 대폭 축소한 아기 콧구멍 캡슐 (Compact Snout)
+            ctx.save();
+            ctx.fillStyle = '#ff8097';
+            ctx.strokeStyle = '#c9184a';
+            ctx.lineWidth = 2.2;
+            ctx.beginPath();
+            ctx.ellipse(-size * 0.24, size * 0.12, size * 0.10, size * 0.07, 0, 0, Math.PI * 2);
+            ctx.fill(); ctx.stroke();
+            
+            // 미니 콧구멍 두 점
+            ctx.fillStyle = '#fff';
+            ctx.beginPath(); ctx.arc(-size * 0.26, size * 0.12, 1.2, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(-size * 0.22, size * 0.12, 1.2, 0, Math.PI * 2); ctx.fill();
+            ctx.restore();
+
+            // 10. [레이어 10] 코 밑에서 톡 튀어나오는 새하얗고 조그만 두 앞니 (Buck Teeth)
+            ctx.save();
+            ctx.fillStyle = '#ffffff';
+            ctx.strokeStyle = strokeColor;
+            ctx.lineWidth = 1.5;
+            // 왼쪽 앞니
+            ctx.beginPath(); ctx.rect(-size * 0.265, size * 0.19, size * 0.03, size * 0.05); ctx.fill(); ctx.stroke();
+            // 오른쪽 앞니
+            ctx.beginPath(); ctx.rect(-size * 0.235, size * 0.19, size * 0.03, size * 0.05); ctx.fill(); ctx.stroke();
+            ctx.restore();
+
+            // 11. [레이어 11] "눈이 너무 작아" -> 3배 가량 크기를 키운 영롱한 구슬 눈동자 분기 연출 (Puppy Eyes)
+            if (this.isTeasing) {
+                // (A) 눈을 질끈 감고 메롱 약 올리는 표정
+                ctx.strokeStyle = '#2b2d42';
+                ctx.lineWidth = 4.0;
+                ctx.lineCap = 'round';
+                
+                // Left '>'
+                ctx.beginPath();
+                ctx.moveTo(-size * 0.46, -size * 0.14);
+                ctx.lineTo(-size * 0.32, -size * 0.07);
+                ctx.lineTo(-size * 0.46, -size * 0.0);
+                ctx.stroke();
+
+                // Right '<'
+                ctx.beginPath();
+                ctx.moveTo(-size * 0.02, -size * 0.14);
+                ctx.lineTo(-size * 0.16, -size * 0.07);
+                ctx.lineTo(-size * 0.02, -size * 0.0);
+                ctx.stroke();
+
+                // 낼름 메롱 혀 (앞니를 귀엽게 덮으며 삐져나옴)
+                ctx.save();
+                ctx.fillStyle = '#ff4d6d';
+                ctx.strokeStyle = '#c9184a';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.ellipse(-size * 0.24, size * 0.26, size * 0.08, size * 0.13, 0, 0, Math.PI * 2);
+                ctx.fill(); ctx.stroke();
+                ctx.restore();
+            } else {
+                // 평상시: "눈이 너무 작아" -> 크고 반짝반짝 투명한 단추 구슬 눈망울 (0.055 -> 0.12로 대폭 확대)
+                ctx.fillStyle = '#222538';
+                ctx.beginPath(); ctx.arc(-size * 0.38, -size * 0.08, size * 0.12, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(-size * 0.10, -size * 0.08, size * 0.12, 0, Math.PI * 2); ctx.fill();
+                
+                // 디보 인형 단추눈 느낌의 화이트 catchlight
+                ctx.fillStyle = '#fff';
+                ctx.beginPath(); ctx.arc(-size * 0.40, -size * 0.11, size * 0.045, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(-size * 0.34, -size * 0.05, size * 0.02, 0, Math.PI * 2); ctx.fill();
+                
+                ctx.beginPath(); ctx.arc(-size * 0.12, -size * 0.11, size * 0.045, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(-size * 0.06, -size * 0.05, size * 0.02, 0, Math.PI * 2); ctx.fill();
+
+                // 수줍은 얇은 입꼬리 미소선
+                ctx.strokeStyle = '#c9184a';
+                ctx.lineWidth = 1.8;
+                ctx.beginPath();
+                ctx.arc(-size * 0.24, size * 0.14, size * 0.04, 0, Math.PI, false);
+                ctx.stroke();
+            }
+
+            ctx.restore();
+        }
+
+        checkHit(x1, y1, x2, y2, hitPadding = 0) {
+            if (this.isDead) return false;
+            const dx = x2 - x1;
+            const dy = y2 - y1;
+            const lenSq = dx*dx + dy*dy;
+            if (lenSq === 0) return false;
+            const t = Math.max(0, Math.min(1, ((this.x - x1) * dx + (this.y - y1) * dy) / lenSq));
+            const projX = x1 + t * dx;
+            const projY = y1 + t * dy;
+            const dist = Math.hypot(this.x - projX, this.y - projY);
+            return dist < (this.baseSize + 15 + hitPadding); 
+        }
+    }
+
+    class ActiveBlade {
+        constructor(p1, p2, isFever = false) {
+            this.p1 = p1; this.p2 = p2; this.life = 1.0;
+            this.isFever = isFever;
+        }
+        update() { this.life -= 0.1; }
+        draw() {
+            ctx.save();
+            ctx.globalAlpha = this.life;
+            ctx.shadowBlur = this.isFever ? 40 : 25; 
+            ctx.shadowColor = this.isFever ? '#f43f5e' : '#fbbf24';
+            ctx.strokeStyle = this.isFever ? '#f43f5e' : '#fff';
+            ctx.lineWidth = (this.isFever ? 12 : 8) * this.life;
+            ctx.beginPath(); ctx.moveTo(this.p1.x, this.p1.y); ctx.lineTo(this.p2.x, this.p2.y); ctx.stroke();
+            ctx.restore();
+        }
+    }
+
+    class StringArtEffect {
+        constructor(p1Idx, p2Idx, isFever = false) {
+            this.diff = Math.abs(p2Idx - p1Idx);
+            if (this.diff > POINTS_COUNT / 2) this.diff = POINTS_COUNT - this.diff;
+            this.life = 1.0;
+            this.isFever = isFever;
+            this.chords = [];
+            for(let i=0; i<POINTS_COUNT; i++) {
+                const start = perimeterPoints[i];
+                const end = perimeterPoints[(i + this.diff) % POINTS_COUNT];
+                this.chords.push({ x1: start.x, y1: start.y, x2: end.x, y2: end.y });
+            }
+        }
+        
+        update() { 
+            this.life -= 0.025; 
+            
+            // 현재 타겟 레벨에 맞는 접선의 필수 인덱스 차이 계산
+            const targetDiff = LEVEL_TANGENT_DIFFS[currentLevel - 1];
+            const isTangent = (this.diff === targetDiff);
+
+            monsters.forEach(m => {
+                if (!m.isDead) {
+                    for(const chord of this.chords) {
+                        if (m.checkHit(chord.x1, chord.y1, chord.x2, chord.y2, 12)) {
+                            if (isTangent) {
+                                // 접선 일치: 정화 성공!
+                                this.purifyMonster(m);
+                            } else {
+                                // 접선 불일치: 메롱 조롱 발동!
+                                m.triggerTease();
+                            }
+                            break; 
+                        }
+                    }
+                }
+            });
+        }
+
+        purifyMonster(m) {
+            m.isDead = true;
+            combo++;
+            score += 1000 + (combo * 100);
+            playSound('activate');
+            addFloatingText(m.x, m.y, `SUCCESS! COMBO X${combo}`);
+            for(let i=0; i<25; i++) particles.push(new Particle(m.x, m.y, this.isFever ? '#f43f5e' : '#ffccd5'));
+            if (!isFeverMode) {
+                fever += 15;
+                if (fever >= 100) startFeverMode();
+            }
+            updateUI();
+        }
+        
+        draw() {
+            ctx.save();
+            const targetDiff = LEVEL_TANGENT_DIFFS[currentLevel - 1];
+            const isTangent = (this.diff === targetDiff);
+            ctx.lineCap = 'round';
+
+            if (isTangent) {
+                // 정답 접선 스트링아트: 두껍고 선명한 흰색 현 + 은은한 광채
+                ctx.globalAlpha = Math.min(this.life * 2, 1);
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = this.isFever ? 6 : 4.5;
+                ctx.shadowBlur = this.isFever ? 24 : 16;
+                ctx.shadowColor = this.isFever ? '#f43f5e' : '#fde68a';
+            } else {
+                // 접선이 아닌 현: 흰색이되 얇고 흐리게 (오답 신호)
+                ctx.globalAlpha = Math.min(this.life * 1.2, 0.45);
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 1.5;
+            }
+
+            this.chords.forEach(c => {
+                ctx.beginPath(); ctx.moveTo(c.x1, c.y1); ctx.lineTo(c.x2, c.y2); ctx.stroke();
+            });
+            ctx.restore();
+        }
+    }
+
+    class Particle {
+        constructor(x, y, color) {
+            this.x = x; this.y = y; this.color = color;
+            const angle = Math.random() * Math.PI * 2;
+            const speed = 2 + Math.random() * 8;
+            this.vx = Math.cos(angle) * speed;
+            this.vy = Math.sin(angle) * speed;
+            this.life = 1.0;
+            this.decay = 0.02 + Math.random() * 0.03;
+        }
+        update() { this.x += this.vx * timeScale; this.y += this.vy * timeScale; this.life -= this.decay; }
+        draw() {
+            ctx.globalAlpha = this.life;
+            ctx.fillStyle = this.color;
+            ctx.beginPath(); ctx.arc(this.x, this.y, 4, 0, Math.PI*2); ctx.fill();
+        }
+    }
+
+    function init() {
+        resize();
+        window.addEventListener('resize', resize);
+        canvas.addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.clientY; });
+        canvas.addEventListener('mousedown', handleInteraction);
+        
+        // 터치 기반 기기 환경 완벽 호환
+        canvas.addEventListener('touchstart', e => {
+            initAudio();
+            const touch = e.touches[0];
+            mouse.x = touch.clientX;
+            mouse.y = touch.clientY;
+            handleInteraction(e);
+        }, {passive: true});
+
+        animate();
+        showStoryPage(0);
+    }
+
+    function resize() {
+        width = canvas.width = window.innerWidth;
+        height = canvas.height = window.innerHeight;
+        setupPerimeter();
+    }
+
+    function setupPerimeter() {
+        perimeterPoints = [];
+        for(let i=0; i<POINTS_COUNT; i++) {
+            const angle = (i / POINTS_COUNT) * Math.PI * 2 - Math.PI/2;
+            perimeterPoints.push({
+                x: width/2 + Math.cos(angle) * MAIN_CIRCLE_RADIUS,
+                y: height/2 + Math.sin(angle) * MAIN_CIRCLE_RADIUS
+            });
+        }
+    }
+
+    function handleInteraction(e) {
+        if (gameState !== 'PLAYING') return;
+        let closestIdx = null;
+        let minDist = 45;
+        perimeterPoints.forEach((p, i) => {
+            const d = Math.hypot(mouse.x - p.x, mouse.y - p.y);
+            if (d < minDist) { minDist = d; closestIdx = i; }
+        });
+        if (closestIdx !== null) {
+            playSound('click');
+            if (selectedPointIndex === null) {
+                selectedPointIndex = closestIdx;
+            } else if (selectedPointIndex === closestIdx) {
+                selectedPointIndex = null;
+            } else {
+                fireBlade(selectedPointIndex, closestIdx);
+                selectedPointIndex = null;
+            }
+        }
+    }
+
+    function fireBlade(idx1, idx2) {
+        const p1 = perimeterPoints[idx1];
+        const p2 = perimeterPoints[idx2];
+        activeBlades.push(new ActiveBlade(p1, p2, isFeverMode));
+        stringArtEffects.push(new StringArtEffect(idx1, idx2, isFeverMode));
+        shake = 15;
+        updateUI();
+    }
+
+    function startFeverMode() {
+        isFeverMode = true;
+        fever = 100;
+        showSplash("TANGENT FEVER!");
+        setTimeout(() => {
+            isFeverMode = false;
+            fever = 0;
+            updateUI();
+        }, 5000);
+    }
+
+    function addFloatingText(x, y, txt) {
+        const div = document.createElement('div');
+        div.className = 'hit-text orbitron font-black';
+        div.innerText = txt;
+        div.style.left = x + 'px';
+        div.style.top = y + 'px';
+        document.body.appendChild(div);
+        setTimeout(() => div.remove(), 1200);
+    }
+
+    function addTeaseText(x, y, txt) {
+        const div = document.createElement('div');
+        div.className = 'hit-text font-black text-rose-500';
+        div.innerText = txt;
+        div.style.left = x + 'px';
+        div.style.top = (y - 30) + 'px';
+        div.style.textShadow = '0 0 10px rgba(244, 63, 94, 0.8)';
+        document.body.appendChild(div);
+        setTimeout(() => div.remove(), 1200);
+    }
+
+    // --- 게임 전 스토리 페이지 (다 읽어야 시작) ---
+    let storyPage = 0;
+    const STORY_TOTAL = 3;
+
+    function renderStoryDots() {
+        const dots = document.getElementById('story-dots');
+        if (!dots) return;
+        dots.innerHTML = '';
+        for (let i = 0; i < STORY_TOTAL; i++) {
+            const d = document.createElement('div');
+            d.style.cssText = `width:11px;height:11px;border-radius:50%;transition:background .2s;background:${i === storyPage ? '#f43f5e' : 'rgba(255,255,255,0.25)'};`;
+            dots.appendChild(d);
+        }
+    }
+
+    function showStoryPage(n) {
+        storyPage = n;
+        document.querySelectorAll('#start-screen .story-page').forEach(p => {
+            p.classList.toggle('hidden', Number(p.dataset.page) !== n);
+        });
+        const isLast = (n === STORY_TOTAL - 1);
+        document.getElementById('story-prev-btn').classList.toggle('hidden', n === 0);
+        document.getElementById('story-next-btn').classList.toggle('hidden', isLast);
+        document.getElementById('story-start-btn').classList.toggle('hidden', !isLast);
+        renderStoryDots();
+    }
+
+    function nextStoryPage() {
+        initAudio(); playSound('click');
+        if (storyPage < STORY_TOTAL - 1) showStoryPage(storyPage + 1);
+    }
+
+    function prevStoryPage() {
+        playSound('click');
+        if (storyPage > 0) showStoryPage(storyPage - 1);
+    }
+
+    function startGame() {
+        initAudio();
+        startScreen.classList.add('hidden');
+        currentLevel = 1;
+        score = 0;
+        combo = 0;
+        fever = 0;
+        startLevel();
+        gameState = 'PLAYING';
+    }
+
+    function startLevel() {
+        monsters = [];
+        const monsterSize = INITIAL_MONSTER_SIZE * Math.pow(0.8, currentLevel - 1);
+        currentLevelOrbitRadius = LEVEL_ORBITS[currentLevel - 1];
+        
+        const angles = [0, (Math.PI * 2) / 3, (Math.PI * 4) / 3]; 
+        angles.forEach(angle => {
+            monsters.push(new Monster(monsterSize, angle));
+        });
+
+        levelText.innerText = `STAGE 05-${currentLevel}`;
+        updateUI();
+    }
+
+    function showSplash(text) {
+        splash.innerText = text;
+        splash.classList.remove('splash-anim');
+        void splash.offsetWidth; 
+        splash.classList.add('splash-anim');
+    }
+
+    function updateUI() {
+        scoreText.innerText = score.toString().padStart(4, '0');
+        comboTextUI.innerText = `COMBO X${combo}`;
+        feverBar.style.width = fever + '%';
+
+        instruction.innerHTML = `🌪️ 꿀꿀쥐가 <span class="text-amber-300 font-bold">원의 중심에서 같은 거리</span>를 빙빙 돌고 있어요. 궤도에 딱 <span class="text-yellow-300 font-bold">접하는 현(윈드블레이드)</span> 하나를 찾아 스트링아트로 감싸 정화하세요!`;
+    }
+
+    function openTablet() { window.open('https://www.youtube.com', '_blank'); }
+    function returnToMap() { location.reload(); }
+
+    function animate() {
+        const bgGrad = ctx.createRadialGradient(width/2, height/2, 100, width/2, height/2, width*0.8);
+        bgGrad.addColorStop(0, isFeverMode ? '#3b0712' : '#0f172a');
+        bgGrad.addColorStop(1, '#020617');
+        ctx.fillStyle = bgGrad;
+        ctx.fillRect(0,0,width,height);
+
+        ctx.save();
+        if (shake > 0) {
+            ctx.translate((Math.random()-0.5)*shake, (Math.random()-0.5)*shake);
+            shake *= 0.9;
+        }
+
+        // 중심점 및 안쪽 꿀꿀쥐 궤도 (하얀 무늬 궤도)
+        ctx.fillStyle = 'rgba(244, 63, 94, 0.9)';
+        ctx.beginPath(); ctx.arc(width/2, height/2, 6, 0, Math.PI*2); ctx.fill();
+        
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.setLineDash([2, 8]);
+        ctx.lineWidth = 1;
+        ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.arc(width/2, height/2, currentLevelOrbitRadius, 0, Math.PI*2); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.lineCap = 'butt';
+
+        // 바깥쪽 조준점 기하학 노드 출력
+        perimeterPoints.forEach((p, i) => {
+            const isHover = Math.hypot(mouse.x - p.x, mouse.y - p.y) < 25;
+            const isSelected = selectedPointIndex === i;
+            ctx.fillStyle = isSelected ? '#fff' : (isHover ? '#fda4af' : '#f43f5e');
+            ctx.beginPath(); ctx.arc(p.x, p.y, (isHover||isSelected) ? 11 : 6, 0, Math.PI*2); ctx.fill();
+            
+            // 현을 긋는 중 보이는 조준 미리보기 선 (선명한 흰색으로 잘 보이게)
+            if (isSelected) {
+                ctx.save();
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
+                ctx.lineWidth = 4;
+                ctx.lineCap = 'round';
+                ctx.setLineDash([12, 9]);
+                ctx.shadowBlur = 12;
+                ctx.shadowColor = 'rgba(255, 255, 255, 0.7)';
+                ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(mouse.x, mouse.y); ctx.stroke();
+                ctx.restore();
+            }
+        });
+
+        if (gameState === 'PLAYING') {
+            monsters.forEach(m => { if (!m.isDead) { m.update(); m.draw(); } });
+            if (monsters.length > 0 && monsters.every(m => m.isDead)) {
+                timeScale = 0.2;
+                if (currentLevel === VICTORY_MILESTONE) {
+                   setTimeout(() => {
+                       gameState = 'CLEAR';
+                       clearScreen.classList.remove('hidden');
+                       playSound('victory');
+                       timeScale = 1.0;
+                   }, 1000);
+                } else {
+                   setTimeout(() => {
+                       showSplash(`STAGE ${currentLevel} CLEAR`);
+                       currentLevel++;
+                       gameState = 'TRANSITION'; 
+                       timeScale = 1.0;
+                       setTimeout(() => { 
+                           if (gameState === 'TRANSITION') {
+                               gameState = 'PLAYING';
+                               startLevel(); 
+                               combo = 0; 
+                           }
+                       }, 1500);
+                   }, 800);
+                }
+                monsters = []; 
+            }
+        }
+
+        stringArtEffects.forEach((eff, i) => {
+            eff.update(); eff.draw();
+            if (eff.life <= 0) stringArtEffects.splice(i, 1);
+        });
+        activeBlades.forEach((b, i) => {
+            b.update(); b.draw();
+            if (b.life <= 0) activeBlades.splice(i, 1);
+        });
+        particles.forEach((p, i) => {
+            p.update(); p.draw();
+            if (p.life <= 0) particles.splice(i, 1);
+        });
+
+        ctx.restore();
+        requestAnimationFrame(animate);
+    }
+
+    window.onload = init;
+</script>
+</body>
+</html>
