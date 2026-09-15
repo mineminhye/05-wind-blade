@@ -853,7 +853,7 @@
     }
 
     function openTablet() { window.open('https://www.youtube.com', '_blank'); }
-    function returnToMap() { location.reload(); }
+    function returnToMap() { window.location.href = 'https://wontheworld.netlify.app/'; }
 
     function animate() {
         const bgGrad = ctx.createRadialGradient(width/2, height/2, 100, width/2, height/2, width*0.8);
